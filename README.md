@@ -2,7 +2,9 @@
 
 ## Overview
 
-This repository contains the implementation and experimental code for the Hybrid Adaptive Hallucination Suppression (Hybrid-AHS) approach for automotive domain Q&A systems.
+Implementation and experimental code for the paper "Hybrid RAG: Adaptive Hallucination Suppression in Retrieval-Augmented Generation for Domain-Specific Q&A" (under review).
+
+This repository contains the Hybrid-AHS approach for reducing hallucinations in automotive domain Q&A systems.
 
 ## Key Features
 
@@ -42,16 +44,8 @@ This repository contains the implementation and experimental code for the Hybrid
 
 ## Citation
 
-*Paper currently under review*
+Paper submitted for review: "Hybrid RAG: Adaptive Hallucination Suppression in Retrieval-Augmented Generation for Domain-Specific Q&A"
 
-## Author
+## Status
 
-Tapetrova
-
-## License
-
-This project is private and proprietary. All rights reserved.
-
-## Contact
-
-For questions or collaboration inquiries, please contact through GitHub.
+Under review
