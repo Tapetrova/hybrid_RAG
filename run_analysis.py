@@ -4,31 +4,27 @@ Main entry point for Hybrid RAG analysis
 """
 
 import os
-import sys
 
 def main():
     print("="*60)
-    print("HYBRID RAG - MAIN ANALYSIS PIPELINE")
+    print("HYBRID RAG - ANALYSIS PIPELINE")
     print("="*60)
     
-    # Change to analysis directory
     os.chdir('dataset_creation/analysis')
     
-    print("\n1. Running comprehensive dataset analysis...")
+    print("\n1. Dataset analysis...")
     os.system('python comprehensive_analysis.py')
     
-    print("\n2. Calculating RAC metrics...")
+    print("\n2. Hallucination evaluation...")
+    os.system('python hallucination_full_api_706.py')
+    
+    print("\n3. RAC metrics...")
     os.system('python calculate_rac_corrected.py')
     
-    print("\n3. Validating category classifier...")
-    os.system('python validate_category_classifier_simple.py')
+    print("\n4. Generating figures...")
+    os.system('python generate_paper_figures.py')
     
-    print("\n4. Generating all visualizations...")
-    os.system('python create_all_visualizations.py')
-    
-    print("\n" + "="*60)
-    print("✅ Analysis complete! Check dataset_creation/analysis/ for outputs")
-    print("="*60)
+    print("\n✅ Complete!")
 
 if __name__ == "__main__":
     main()
