@@ -163,19 +163,29 @@ $RECYCLE.BIN/
 *.msp
 *.lnk
 
-# Project specific
+# Project specific - ALL output files
 *.png
 *.pdf
 *.csv
 *.json
 *.txt
 *.log
+*.tex
 
-# Keep important files
+# Keep only essential files
 !requirements.txt
 !README.md
 !.gitignore
 !dataset_creation/data/apqc_auto.json
+!.env.example
+
+# Ignore ALL analysis outputs
+dataset_creation/analysis/*.png
+dataset_creation/analysis/*.csv
+dataset_creation/analysis/*.json
+dataset_creation/analysis/*.txt
+dataset_creation/analysis/*.tex
+dataset_creation/analysis/*.pdf
 
 # Temporary files
 *.tmp
