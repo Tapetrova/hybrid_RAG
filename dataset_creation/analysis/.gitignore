@@ -1,0 +1,30 @@
+# Environment variables
+.env
+.env.local
+*.env
+
+# Output files
+outputs/
+*.jsonl
+*.csv
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

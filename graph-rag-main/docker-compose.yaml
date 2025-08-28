@@ -1,0 +1,307 @@
+version: '3.8'
+
+# Common environment variables template
+x-common-env: &common-env
+  REDIS_HOST: ${REDIS_HOST:-redis-server}
+  REDIS_PORT: ${REDIS_PORT:-6379}
+  REDIS_PASSWORD_LLM: ${REDIS_PASSWORD_LLM:-redispassword}
+  POSTGRES_USER: ${POSTGRES_USER:-postgres}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+  POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+  POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+  POSTGRES_DB: ${POSTGRES_DB:-postgres}
+  OPENAI_API_KEY: ${OPENAI_API_KEY}
+  OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+  CEREBRAS_API_KEY: ${CEREBRAS_API_KEY}
+  LLM_MODEL: ${LLM_MODEL:-gpt-3.5-turbo-16k}
+
+x-langfuse-env: &langfuse-env
+  LANGFUSE_HOST: ${LANGFUSE_HOST:-http://localhost:3000}
+  LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+  LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+
+x-common-deps: &common-deps
+  depends_on:
+    - redis-server
+    - postgres
+    - qdrant
+
+services:
+  # Core Infrastructure Services
+  redis-server:
+    image: redis:7-alpine
+    hostname: redis-server
+    ports:
+      - "6380:6379"
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD_LLM:-redispassword}
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD_LLM:-redispassword}
+    networks:
+      - backend
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  postgres:
+    image: postgres:14-alpine
+    networks:
+      - backend
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  qdrant:
+    image: qdrant/qdrant:v1.9.0
+    networks:
+      - backend
+    restart: always
+    hostname: qdrant
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:6333/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Content Scraper Application
+  content-scraper-app:
+    container_name: content-scraper-app
+    restart: always
+    build:
+      context: .
+      dockerfile: apps/content_scraper/Dockerfile
+    environment:
+      <<: [*common-env, *langfuse-env]
+      QDRANT_HOST: ${QDRANT_HOST:-qdrant}
+      QDRANT_PORT: ${QDRANT_PORT:-6333}
+      REDIS_DB_CONV: ${REDIS_DB_CONV:-7}
+      CACHE_EXPIRATION: ${CACHE_EXPIRATION:-3600}
+      CELERY_BROKER_CONTENT_SCRAPER_DB: ${CELERY_BROKER_CONTENT_SCRAPER_DB:-5}
+      CELERY_BACKEND_CONTENT_SCRAPER_DB: ${CELERY_BACKEND_CONTENT_SCRAPER_DB:-5}
+      SERPER_API_KEY: ${SERPER_API_KEY}
+      APIFY_API_TOKEN: ${APIFY_API_TOKEN}
+      JINA_API_KEY: ${JINA_API_KEY:-}
+      PROXY_SERVER_HOST: ${PROXY_SERVER_HOST:-proxy.apify.com:8000}
+      PROXY_SERVER_USERNAME: ${PROXY_SERVER_USERNAME:-}
+      PROXY_SERVER_PASSWORD: ${PROXY_SERVER_PASSWORD:-}
+      PARSE_CONTENT_WEBHOOK_ENDPOINT: ${PARSE_CONTENT_WEBHOOK_ENDPOINT:-http://content-scraper-app:8099/send_notification_got_content}
+      UPLOAD_REDDIT_TO_TABLE_ENDPOINT: ${UPLOAD_REDDIT_TO_TABLE_ENDPOINT:-http://content-scraper-app:8099/upload_reddit_to_table}
+      DEFAULT_VECTOR_DB_RECORD_CONTENT: ${DEFAULT_VECTOR_DB_RECORD_CONTENT:-http://knowledge-manager-app:8098/building/record_content}
+    command: uvicorn apps.content_scraper.app:app --host 0.0.0.0 --port 8099 --workers 1
+    ports:
+      - "8099:8099"
+    <<: *common-deps
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8099/health/liveness || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  content-scraper-worker:
+    container_name: content-scraper-worker
+    restart: always
+    build:
+      context: .
+      dockerfile: apps/content_scraper/Dockerfile
+    environment:
+      <<: [*common-env, *langfuse-env]
+      QDRANT_HOST: ${QDRANT_HOST:-qdrant}
+      QDRANT_PORT: ${QDRANT_PORT:-6333}
+      REDIS_DB_CONV: ${REDIS_DB_CONV:-7}
+      CACHE_EXPIRATION: ${CACHE_EXPIRATION:-3600}
+      CELERY_BROKER_CONTENT_SCRAPER_DB: ${CELERY_BROKER_CONTENT_SCRAPER_DB:-5}
+      CELERY_BACKEND_CONTENT_SCRAPER_DB: ${CELERY_BACKEND_CONTENT_SCRAPER_DB:-5}
+      SERPER_API_KEY: ${SERPER_API_KEY}
+      APIFY_API_TOKEN: ${APIFY_API_TOKEN}
+      PROXY_SERVER_HOST: ${PROXY_SERVER_HOST:-proxy.apify.com:8000}
+      PROXY_SERVER_USERNAME: ${PROXY_SERVER_USERNAME:-}
+      PROXY_SERVER_PASSWORD: ${PROXY_SERVER_PASSWORD:-}
+      PARSE_CONTENT_WEBHOOK_ENDPOINT: ${PARSE_CONTENT_WEBHOOK_ENDPOINT:-http://content-scraper-app:8099/send_notification_got_content}
+      UPLOAD_REDDIT_TO_TABLE_ENDPOINT: ${UPLOAD_REDDIT_TO_TABLE_ENDPOINT:-http://content-scraper-app:8099/upload_reddit_to_table}
+      DEFAULT_VECTOR_DB_RECORD_CONTENT: ${DEFAULT_VECTOR_DB_RECORD_CONTENT:-http://knowledge-manager-app:8098/building/record_content}
+    command: celery -A apps.content_scraper.celery_worker.celery_app worker --concurrency=10 --loglevel=info -P threads
+    <<: *common-deps
+    networks:
+      - backend
+
+  # Knowledge Manager Application
+  knowledge-manager-app:
+    container_name: knowledge-manager-app
+    restart: always
+    build:
+      context: .
+      dockerfile: apps/knowledge_manager/Dockerfile
+    environment:
+      <<: [*common-env, *langfuse-env]
+      QDRANT_HOST: ${QDRANT_HOST:-qdrant}
+      QDRANT_PORT: ${QDRANT_PORT:-6333}
+      COLLECTION_NAME: ${COLLECTION_NAME:-car-db}
+      REDIS_DB_CONV: ${REDIS_DB_CONV:-7}
+      CACHE_EXPIRATION: ${CACHE_EXPIRATION:-3600}
+      CELERY_BROKER_KNOWLEDGE_MANAGER_DB: ${CELERY_BROKER_KNOWLEDGE_MANAGER_DB:-6}
+      CELERY_BACKEND_KNOWLEDGE_MANAGER_DB: ${CELERY_BACKEND_KNOWLEDGE_MANAGER_DB:-6}
+      ENDPOINT_CONTENT_SCRAPER: ${ENDPOINT_CONTENT_SCRAPER:-http://content-scraper-app:8099/search_content}
+      AWS_S3_REGION: ${AWS_S3_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    command: uvicorn apps.knowledge_manager.src.main:app --host 0.0.0.0 --port 8098 --workers 1
+    ports:
+      - "8098:8098"
+    depends_on:
+      - redis-server
+      - postgres
+      - content-scraper-app
+      - qdrant
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8098/health/liveness || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  knowledge-manager-worker:
+    container_name: knowledge-manager-worker
+    restart: always
+    build:
+      context: .
+      dockerfile: apps/knowledge_manager/Dockerfile
+    environment:
+      <<: [*common-env, *langfuse-env]
+      QDRANT_HOST: ${QDRANT_HOST:-qdrant}
+      QDRANT_PORT: ${QDRANT_PORT:-6333}
+      COLLECTION_NAME: ${COLLECTION_NAME:-car-db}
+      REDIS_DB_CONV: ${REDIS_DB_CONV:-7}
+      CACHE_EXPIRATION: ${CACHE_EXPIRATION:-3600}
+      CELERY_BROKER_KNOWLEDGE_MANAGER_DB: ${CELERY_BROKER_KNOWLEDGE_MANAGER_DB:-6}
+      CELERY_BACKEND_KNOWLEDGE_MANAGER_DB: ${CELERY_BACKEND_KNOWLEDGE_MANAGER_DB:-6}
+      ENDPOINT_CONTENT_SCRAPER: ${ENDPOINT_CONTENT_SCRAPER:-http://content-scraper-app:8099/search_content}
+      AWS_S3_REGION: ${AWS_S3_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    command: celery -A apps.knowledge_manager.src.celery_workers.celery_app worker --concurrency=10 --loglevel=info -P threads
+    depends_on:
+      - redis-server
+      - postgres
+      - qdrant
+      - knowledge-manager-app
+    networks:
+      - backend
+
+  # Agent Flow Application
+  agent-flow-app:
+    container_name: agent-flow-app
+    restart: always
+    build:
+      context: .
+      dockerfile: apps/agent_flow/Dockerfile
+    environment:
+      <<: [*common-env, *langfuse-env]
+      ENVIRONMENT_NAME: ${ENVIRONMENT_NAME:-local_development_env}
+      REDIS_DB_CONV: ${REDIS_DB_CONV:-7}
+      REDIS_DB_PUB_SUB: ${REDIS_DB_PUB_SUB:-2}
+      CACHE_EXPIRATION: ${CACHE_EXPIRATION:-3600}
+      COLLECTION_NAME: ${COLLECTION_NAME:-car-db}
+      WORKERS: ${WORKERS:-1}
+      AGENT_FLOW_PORT: ${AGENT_FLOW_PORT:-8096}
+      SERPER_API_KEY: ${SERPER_API_KEY}
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
+      CAR_BACKEND_AUTH_TOKEN: ${CAR_BACKEND_AUTH_TOKEN}
+      ENDPOINT_CRAWLER_SEARCH_CONTENT: ${ENDPOINT_CRAWLER_SEARCH_CONTENT:-http://content-scraper-app:8099/crawler/search_content}
+      ENDPOINT_GET_SOURCE_CONTENT: ${ENDPOINT_GET_SOURCE_CONTENT:-http://content-scraper-app:8099/data/get_content_source_by_urls}
+      ENDPOINT_PROMETHEUS_EVAL: ${ENDPOINT_PROMETHEUS_EVAL:-http://prometheus-eval-judge:5000/predictions}
+      ENDPOINT_RETRIEVEMENT: ${ENDPOINT_RETRIEVEMENT:-http://knowledge-manager-app:8098/retrievement/vector_retrieve}
+      BASEURL_RETRIEVEMENT: ${BASEURL_RETRIEVEMENT:-http://knowledge-manager-app:8098}
+      BASEURL_CONTENT_SCRAPER: ${BASEURL_CONTENT_SCRAPER:-http://content-scraper-app:8099}
+      BASEURL_CAR_BACKEND: ${BASEURL_CAR_BACKEND:-http://car-frontend-api:3334}
+    ports:
+      - "8096:8096"
+    depends_on:
+      - redis-server
+      - postgres
+      - qdrant
+      - content-scraper-app
+      - knowledge-manager-app
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8096/health/liveness || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Optional Development Tools (can be removed in production)
+  pgadmin:
+    container_name: pgadmin
+    image: dpage/pgadmin4:latest
+    restart: always
+    ports:
+      - "8820:80"
+    networks:
+      - backend
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-postgres@postgres.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-postgres}
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    profiles:
+      - dev
+
+  redis-ui:
+    image: patrikx3/p3x-redis-ui:latest
+    ports:
+      - "37847:7843"
+    depends_on:
+      - redis-server
+    volumes:
+      - ./redis-sentinel/redis-ui:/settings
+    networks:
+      - backend
+    profiles:
+      - dev
+
+  # Flower monitoring for Celery (development only)
+  celery-flower:
+    image: mher/flower:latest
+    ports:
+      - "5555:5555"
+    environment:
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD_LLM:-redispassword}@redis-server:6379/5
+      FLOWER_PORT: 5555
+    depends_on:
+      - redis-server
+    networks:
+      - backend
+    profiles:
+      - dev
+
+volumes:
+  postgres-data:
+  qdrant-data:
+  pgadmin-data:
+  redis-data:
+
+networks:
+  backend:
+    driver: bridge

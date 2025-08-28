@@ -1,0 +1,41 @@
+dataset_path: "../data/apqc_auto.json"
+
+modes:
+  - base_llm
+  - vector_rag
+  - graph_rag
+  - hybrid_ahs   # client-side fusion (vector+graph), weighted by category
+
+services:
+  knowledge_manager_vector_url: "http://localhost:8098/vector/search"
+  knowledge_manager_graph_url:  "http://localhost:8098/graph/search"
+  knowledge_manager_pathcheck_url: null   # GAC disabled for now
+
+retrieval:
+  top_k: 4
+  max_chars_per_passage: 1200    # truncate each retrieved passage to avoid token blowups
+  max_context_chars_total: 6000  # cap total concatenated context
+
+hybrid_weights:
+  causal:      {graph: 0.7, vector: 0.3}
+  diagnostic:  {graph: 0.7, vector: 0.3}
+  factual:     {graph: 0.3, vector: 0.7}
+  comparative: {graph: 0.4, vector: 0.6}
+  default:     {graph: 0.5, vector: 0.5}
+
+claims_llm:
+  model: "gpt-4o-mini"
+  temperature: 0.0
+  max_tokens: 512
+
+judge_llm:
+  model: "gpt-4o-mini"
+  temperature: 0.0
+  max_tokens: 512
+
+graph:
+  enable_gac: false
+  max_hops: 2
+
+seed: 1729
+output_dir: "./outputs"
