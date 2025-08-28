@@ -14,13 +14,19 @@ This repository contains the implementation and experimental code for the Hybrid
 ## Project Structure
 
 ```
-├── dataset_creation/       # Dataset processing and analysis
-│   ├── analysis/          # Statistical analysis and visualizations
-│   └── data/             # APQC automotive dataset
-├── graph-rag-main/        # Graph RAG implementation
-│   ├── apps/             # Application modules
-│   └── libs/             # Utility libraries
-└── analyze_categories.py  # Category analysis script
+├── dataset_creation/
+│   ├── data/
+│   │   └── apqc_auto.json         # 706 automotive Q&A pairs
+│   ├── analysis/                  # Core analysis scripts
+│   │   ├── calculate_rac_corrected.py        # RAC metric calculation
+│   │   ├── create_wfas_2_5_*.py             # WFAS visualizations
+│   │   ├── create_rac_cs_charts.py          # RAC charts
+│   │   ├── hallucination_full_api_706.py    # Hallucination analysis
+│   │   └── validate_category_classifier*.py  # Classification validation
+│   ├── scripts/                   # Dataset processing
+│   └── documentation/             # Dataset documentation
+├── graph-rag-main/                # Graph RAG implementation
+└── requirements.txt               # Python dependencies
 ```
 
 ## Key Results
